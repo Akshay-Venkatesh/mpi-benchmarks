@@ -428,13 +428,13 @@ Return value          (type int)
     MPI_Barrier(MPI_COMM_WORLD);
     IMB_end_msg(&C_INFO);
 
+    /* >> IMB 3.1  */
+    MPI_Finalize();
+
 #ifdef ENABLE_CUDA
     if (ctx_created) {
         CU_CHECK(cuCtxDestroy(cu_context));
     }
 #endif
-
-    /* >> IMB 3.1  */
-    MPI_Finalize();
     return 0;
 } /* end of main*/

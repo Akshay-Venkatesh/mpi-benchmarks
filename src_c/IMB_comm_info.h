@@ -116,6 +116,11 @@ struct comm_info {
     int         select_tag;         /* 0/1 for tag selection off/on            */
     int         select_source;      /* 0/1 for sender selection off/on         */
 
+#ifdef ENABLE_CUDA
+    int         use_device;         /* 0/1 to toggle cuda allocations          */
+    int         mem_type;           /* 0/1/2 for host/pinned/managed           */
+#endif
+
     void*       s_buffer;           /* send    buffer                          */
     assign_type*    s_data;         /* assign_type equivalent of s_buffer      */
     size_t      s_alloc;            /* #bytes allocated in s_buffer            */

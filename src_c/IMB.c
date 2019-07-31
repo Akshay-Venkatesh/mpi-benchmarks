@@ -162,6 +162,27 @@ Return value          (type int)
         return 0;
     }
 
+#ifdef ENABLE_CUDA
+    CUcontext cu_context;
+    int ctx_created = 0;
+    if (C_INFO.use_device) {
+        char *str;
+        int dev_id, local_rank, dev_count;
+        CUdevice cu_device;
+
+        if (((str = getenv("OMPI_COMM_WORLD_LOCAL_RANK")) != NULL)
+            || ((str = getenv("MV2_COMM_WORLD_LOCAL_RANK")) != NULL)) {
+            local_rank = atoi(str);
+            CU_CHECK(cuDeviceGetCount(&dev_count));
+            dev_id = local_rank % dev_count;
+        }
+        CU_CHECK(cuInit(0));
+        CU_CHECK(cuDeviceGet(&cu_device, dev_id));
+        CU_CHECK(cuCtxCreate(&cu_context, 0, cu_device));
+        ctx_created = 1;
+    }
+#endif
+
     /* IMB 3.1 << */
     IMB_show_selections(&C_INFO, BList, &argc, &argv);
     /* >> IMB 3.1  */
@@ -407,8 +428,13 @@ Return value          (type int)
     MPI_Barrier(MPI_COMM_WORLD);
     IMB_end_msg(&C_INFO);
 
+#ifdef ENABLE_CUDA
+    if (ctx_created) {
+        CU_CHECK(cuCtxDestroy(cu_context));
+    }
+#endif
+
     /* >> IMB 3.1  */
     MPI_Finalize();
-
     return 0;
 } /* end of main*/

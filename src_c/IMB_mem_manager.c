@@ -163,18 +163,50 @@ In/out variables:
 
     if (c_info->s_alloc < s_len) {
         size_t size;
+#ifdef ENABLE_CUDA
+        if (c_info->use_device) {
+            CU_MEM_FREE(c_info->s_buffer, c_info->mem_type);
+        } else {
+            IMB_v_free((void**)&c_info->s_buffer);
+        }
+#else
         IMB_v_free((void**)&c_info->s_buffer);
+#endif
         size = s_len * ((size_t)c_info->size_scale);
+#ifdef ENABLE_CUDA
+        if (c_info->use_device) {
+            CU_MEM_ALLOC(&c_info->s_buffer, size, c_info->mem_type);
+        } else {
+            c_info->s_buffer = IMB_v_alloc(size, where);
+        }
+#else
         c_info->s_buffer = IMB_v_alloc(size, where);
+#endif
         c_info->s_alloc = size / ((size_t)c_info->size_scale);
         c_info->s_data = (assign_type*)c_info->s_buffer;
     }
 
     if (c_info->r_alloc < r_len) {
         size_t size;
+#ifdef ENABLE_CUDA
+        if (c_info->use_device) {
+            CU_MEM_FREE(c_info->r_buffer, c_info->mem_type);
+        } else {
+            IMB_v_free((void**)&c_info->r_buffer);
+        }
+#else
         IMB_v_free((void**)&c_info->r_buffer);
+#endif
         size = r_len * ((size_t)c_info->size_scale);
+#ifdef ENABLE_CUDA
+        if (c_info->use_device) {
+            CU_MEM_ALLOC(&c_info->r_buffer, size, c_info->mem_type);
+        } else {
+            c_info->r_buffer = IMB_v_alloc(size, where);
+        }
+#else
         c_info->r_buffer = IMB_v_alloc(size, where);
+#endif
         c_info->r_alloc = size / ((size_t)c_info->size_scale);
         c_info->r_data = (assign_type*)c_info->r_buffer;
     }
@@ -270,6 +302,31 @@ In/out variables:
                       Values assigned within given positions
 
 */
+#ifdef ENABLE_CUDA
+
+    int mem_type = 0;
+    int is_managed = 0;
+    int switch_bufs = 0;
+    CUresult cu_res;
+    assign_type tmp_val;
+    void *host_src;
+    CUdeviceptr src;
+    CUdeviceptr dst;
+
+    cu_res = cuPointerGetAttribute(&mem_type,
+        CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) buf);
+    if (CUDA_ERROR_INVALID_VALUE == cu_res) {
+        /* Do nothing */
+    } else {
+        cu_res = cuPointerGetAttribute(&is_managed,
+            CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr) buf);
+        if (CU_MEMORYTYPE_DEVICE == mem_type && !is_managed) {
+            switch_bufs = 1;
+        } 
+    }
+
+#endif
+
     if (pos2 >= pos1) {
         size_t a_pos1, a_pos2, i, j;
         a_pos1 = pos1 / asize;
@@ -280,17 +337,62 @@ In/out variables:
             a_pos2 = a_pos1 - 1;
 
         if (value)
-            for (i = a_pos1, j = 0; i <= a_pos2; i++, j++)
+            for (i = a_pos1, j = 0; i <= a_pos2; i++, j++) {
+#ifdef ENABLE_CUDA
+                if (switch_bufs) {
+                    tmp_val = BUF_VALUE(rank, i);
+                    dst = (CUdeviceptr) &(((assign_type *)buf)[j]);
+                    host_src = (void *) &tmp_val;
+                    CU_CHECK(cuMemcpyHtoD(dst, host_src, sizeof(assign_type)));
+                    CU_CHECK(cuCtxSynchronize());
+                } else {
+                    ((assign_type *)buf)[j] = BUF_VALUE(rank, i);
+                }
+#else
                 ((assign_type *)buf)[j] = BUF_VALUE(rank, i);
+#endif
+            }
         else
-            for (i = a_pos1, j = 0; i <= a_pos2; i++, j++)
+            for (i = a_pos1, j = 0; i <= a_pos2; i++, j++) {
+#ifdef ENABLE_CUDA
+                if (switch_bufs) {
+                    tmp_val = 0.;
+                    dst = (CUdeviceptr) &(((assign_type *)buf)[j]);
+                    host_src = (void *) &tmp_val;
+                    CU_CHECK(cuMemcpyHtoD(dst, host_src, sizeof(assign_type)));
+                    CU_CHECK(cuCtxSynchronize());
+                } else {
+                    ((assign_type *)buf)[j] = 0.;
+                }
+#else
                 ((assign_type *)buf)[j] = 0.;
+#endif
+            }
 
         if (a_pos1*asize != pos1) {
             void* xx = (void*)(((char*)buf) + pos1 - a_pos1*asize);
+#ifdef ENABLE_CUDA
+            if (switch_bufs) {
+                char *tmp;
+                CU_CHECK(cuMemAlloc((CUdeviceptr *) &tmp, (pos2 - pos1 + 1)));
+                dst = (CUdeviceptr) tmp;
+                src = (CUdeviceptr) xx;
+                CU_CHECK(cuMemcpyDtoD(dst, src, (pos2 - pos1 + 1)));
+                CU_CHECK(cuCtxSynchronize());
+                dst = (CUdeviceptr) buf;
+                src = (CUdeviceptr) tmp;
+                CU_CHECK(cuMemcpyDtoD(dst, src, (pos2 - pos1 + 1)));
+                CU_CHECK(cuCtxSynchronize());
+                CU_CHECK(cuMemFree((CUdeviceptr) tmp));
+            } else {
+                memmove(buf, xx, pos2 - pos1 + 1);
+            }
+#else
             memmove(buf, xx, pos2 - pos1 + 1);
+#endif
         }
     } /*if( pos2>= pos1 )*/
+
 }
 
 
@@ -906,7 +1008,15 @@ In/out variables:
 
 */
     if (c_info->s_alloc > 0) {
+#ifdef ENABLE_CUDA
+        if (c_info->use_device) {
+            CU_MEM_FREE(c_info->s_buffer, c_info->mem_type);
+        } else {
+            IMB_v_free((void**)&c_info->s_buffer);
+        }
+#else
         IMB_v_free((void**)&c_info->s_buffer);
+#endif
         c_info->s_alloc = 0;
         c_info->s_buffer = NULL;
 
@@ -926,7 +1036,15 @@ In/out variables:
 
 */
     if (c_info->r_alloc > 0) {
+#ifdef ENABLE_CUDA
+        if (c_info->use_device) {
+            CU_MEM_FREE(c_info->r_buffer, c_info->mem_type);
+        } else {
+            IMB_v_free((void**)&c_info->r_buffer);
+        }
+#else
         IMB_v_free((void**)&c_info->r_buffer);
+#endif
         c_info->r_alloc = 0;
         c_info->r_buffer = NULL;
 

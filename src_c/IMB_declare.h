@@ -92,6 +92,53 @@ typedef int Type_Size;          /*correct MPI standard  */
 
 extern int num_alloc, num_free;
 
+#ifdef ENABLE_CUDA
+#include <unistd.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+#define CUDA_HOST_MEM 0
+#define CUDA_DEVICE_MEM 1
+#define CUDA_MANAGED_MEM 2
+
+#define CU_CHECK(fxn)                                                         \
+    do {                                                                      \
+        CUresult curesult = fxn;                                              \
+        char *cu_err_string;                                                  \
+        if (CUDA_SUCCESS != curesult) {                                       \
+            if (CUDA_SUCCESS == cuGetErrorString(curesult, (const char**) &cu_err_string)) { \
+                sleep(10);                                                    \
+                fprintf(stderr, "%s\n", cu_err_string);                       \
+            } else {                                                          \
+                fprintf(stderr, "invalid cuda error\n");                      \
+            }                                                                 \
+            exit(-1);                                                         \
+        }                                                                     \
+    } while(0);
+
+#define CU_MEM_FREE(ptr, type)                         \
+    do {                                               \
+        if (CUDA_HOST_MEM == type) {                   \
+            CU_CHECK(cuMemFreeHost((void*) ptr));      \
+        } else {                                       \
+            CU_CHECK(cuMemFree((CUdeviceptr) ptr));    \
+        }                                              \
+    } while(0);
+
+#define CU_MEM_ALLOC(pptr, size, type)                                                                 \
+    do {                                                                                               \
+        if (CUDA_HOST_MEM == type) {                                                                   \
+            CU_CHECK(cuMemHostAlloc((void **) pptr, (size_t) size, CU_MEMHOSTALLOC_PORTABLE));         \
+        } else if (CUDA_DEVICE_MEM == type) {                                                          \
+            CU_CHECK(cuMemAlloc((CUdeviceptr *) pptr, (size_t) size));                                 \
+        } else if (CUDA_MANAGED_MEM == type) {                                                         \
+            CU_CHECK(cuMemAllocManaged((CUdeviceptr *) pptr, (size_t) size, CU_MEM_ATTACH_GLOBAL));    \
+        } else {                                                                                       \
+            fprintf(stderr, "Should not be here; mem_type = %d\n", type);                              \
+        }                                                                                              \
+    } while(0);
+
+#endif
 
 #undef DEBUG
 

@@ -106,7 +106,7 @@ $(BUILDDIR):
 	-mkdir -p $@
 
 $(BINARY): $(OBJ)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $^ -o $@ $(LDFLAGS) 
 
 $(BUILDDIR)/%.o: %.c
 	$(CC) $(CFLAGS) -D$(TARGET) -DIMB2018 -c $< -o $@

@@ -163,7 +163,35 @@ Return value              (type double)
     /* max. relative difference of vectors A/B */
     double D, d1, rel;
     size_t i;
+#ifdef ENABLE_CUDA
 
+    int mem_type = 0;
+    int is_managed = 0;
+    int switch_bufs = 0;
+    CUresult cu_res;
+    char *tmp_buf;
+    assign_type *tmp_save;
+    CUdeviceptr src;
+
+    cu_res = cuPointerGetAttribute(&mem_type,
+        CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) B);
+    if (CUDA_ERROR_INVALID_VALUE == cu_res) {
+        /* Do nothing */
+    } else {
+        cu_res = cuPointerGetAttribute(&is_managed,
+            CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr) B);
+        if (CU_MEMORYTYPE_DEVICE == mem_type && !is_managed) {
+            switch_bufs = 1;
+            tmp_save = B;
+            src = (CUdeviceptr) B;
+            tmp_buf = malloc(sizeof(assign_type) * len);
+            CU_CHECK(cuMemcpyDtoH(tmp_buf, src, sizeof(assign_type) * len));
+            CU_CHECK(cuCtxSynchronize());
+            B = (assign_type *) tmp_buf;
+        } 
+    }
+
+#endif
     D = 0.;
 
     d1 = -1.;
@@ -185,6 +213,12 @@ Return value              (type double)
             *fault_pos = (i - 1)*asize;
         }
     }
+#ifdef ENABLE_CUDA
+    if (switch_bufs) {
+        B = tmp_save;
+        free(tmp_buf);
+    }
+#endif
     return D;
 }
 

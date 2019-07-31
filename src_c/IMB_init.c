@@ -348,6 +348,10 @@ int IMB_basic_input(struct comm_info* c_info, struct Bench** P_BList,
     iarg_msg = -1;
 
     c_info->group_mode = -1;
+#ifdef ENABLE_CUDA
+    c_info->use_device = 0;
+    c_info->mem_type = 0;
+#endif
 #ifdef MPIIO
     *NP_min = 1;
 #else
@@ -425,6 +429,9 @@ int IMB_basic_input(struct comm_info* c_info, struct Bench** P_BList,
                     ITERATIONS->cache_size = cs;
                     ITERATIONS->cache_line_size = cls;
                     ITERATIONS->off_cache = 1;
+#ifdef ENABLE_CUDA
+                    ITERATIONS->off_cache = 0;
+#endif
 
                     iarg++;
 
@@ -721,6 +728,44 @@ int IMB_basic_input(struct comm_info* c_info, struct Bench** P_BList,
                         c_info->sync = val;
                     }
                     iarg++;
+                }
+#endif
+#ifdef ENABLE_CUDA
+                else if (!strcmp((*argv)[iarg], "-use_device")) {
+                    int val = -1;
+
+                    if (iarg + 1 < *argc)
+                        val = IMB_chk_arg_switch((*argv)[iarg + 1]);
+
+                    if (val == -1) {
+                        fprintf(stderr, "Invalid use_device argument. Has to be 0 (host) 1 (device) \n");
+                        ok = -1;
+                        break;
+                    } else {
+                        c_info->use_device = val;
+                    }
+                    iarg++;
+                } else if (!strcmp((*argv)[iarg], "-mem_type")) {
+
+                    int ierr;
+                    int mem_type;
+
+                    if (iarg + 1 >= *argc) {
+                        fprintf(stderr, "Missing argument after \"-mem_type\"\n");
+                        ok = -1;
+                        break;
+                    }
+
+                    ierr = sscanf((*argv)[iarg + 1], "%d", &mem_type);
+                    if (ierr != 1) {
+                        fprintf(stderr, "Invalid -mem_type selection\n");
+                        ok = -1;
+                        break;
+                    }
+
+                    c_info->mem_type = mem_type;
+                    iarg++;
+
                 }
 #endif
                 else if (!strcmp((*argv)[iarg], "-imb_barrier")) {

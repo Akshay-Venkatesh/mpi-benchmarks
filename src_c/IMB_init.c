@@ -250,7 +250,7 @@ int static IMB_chk_arg_switch (char *val) {
 }
 
 
-#define N_baseinfo 18
+#define N_baseinfo 20
 /* IMB 3.1 << */
 #define N_base_f_info 3  /* for float data */
 /* >> IMB 3.1  */
@@ -969,6 +969,8 @@ int IMB_basic_input(struct comm_info* c_info, struct Bench** P_BList,
         ALL_INFO[15] = c_info->sync;
         ALL_INFO[16] = ok;
         ALL_INFO[17] = IMB_internal_barrier;
+        ALL_INFO[18] = c_info->use_device;
+        ALL_INFO[19] = c_info->mem_type;
 
         ALL_F_INFO[0] = ITERATIONS->cache_size;
         ALL_F_INFO[1] = ITERATIONS->secs;
@@ -1021,6 +1023,8 @@ int IMB_basic_input(struct comm_info* c_info, struct Bench** P_BList,
         c_info->sync = TMP[15];
         ok = TMP[16];
         IMB_internal_barrier = TMP[17];
+        c_info->use_device = TMP[18];
+        c_info->mem_type = TMP[19];
 
         ITERATIONS->cache_size = ALL_F_INFO[0];
         ITERATIONS->off_cache = (ITERATIONS->cache_size < 0.) ? 0 : 1;

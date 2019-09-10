@@ -356,7 +356,7 @@ In/out variables:
 #ifdef ENABLE_CUDA
     if (switch_bufs) {
         dst = (CUdeviceptr) tmp_save;
-        CU_CHECK(cuMemcpyHtoD(dst, buf, sizeof(assign_type) * (pos2 / asize)));
+        CU_CHECK(cuMemcpyHtoD(dst, buf, sizeof(assign_type) * ((pos2 - pos1 + 1) / asize)));
         CU_CHECK(cuCtxSynchronize());       
         buf = tmp_save;
         free(tmp_buf);

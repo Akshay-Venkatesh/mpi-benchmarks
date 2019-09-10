@@ -188,7 +188,7 @@ Return value              (type double)
             CU_CHECK(cuMemcpyDtoH(tmp_buf, src, sizeof(assign_type) * len));
             CU_CHECK(cuCtxSynchronize());
             B = (assign_type *) tmp_buf;
-        } 
+        }
     }
 
 #endif
@@ -256,6 +256,36 @@ Input variables:
 
 */
     size_t i;
+
+#ifdef ENABLE_CUDA
+
+    int mem_type = 0;
+    int is_managed = 0;
+    int switch_bufs = 0;
+    CUresult cu_res;
+    void *tmp_buf;
+    void *tmp_save;
+    CUdeviceptr src;
+
+    cu_res = cuPointerGetAttribute(&mem_type,
+        CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) buf);
+    if (CUDA_ERROR_INVALID_VALUE == cu_res) {
+        /* Do nothing */
+    } else {
+        cu_res = cuPointerGetAttribute(&is_managed,
+            CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr) buf);
+        if (CU_MEMORYTYPE_DEVICE == mem_type && !is_managed) {
+            switch_bufs = 1;
+            tmp_save = buf;
+            src = (CUdeviceptr) buf;
+            tmp_buf = malloc(totlen);
+            CU_CHECK(cuMemcpyDtoH(tmp_buf, src, totlen));
+            CU_CHECK(cuCtxSynchronize());
+            buf = tmp_buf;
+        }
+    }
+
+#endif
 
     fprintf(unit, "Process %d: %s", c_info->rank, text);
     fprintf(unit, "\n");
@@ -401,6 +431,13 @@ Input variables:
 
 #ifdef DEBUG
     fflush(dbg_file);
+#endif
+
+#ifdef ENABLE_CUDA
+    if (switch_bufs) {
+        buf = tmp_save;
+        free(tmp_buf);
+    }
 #endif
 
 }
@@ -1368,6 +1405,36 @@ Return value          (type long)
 */
     long crccode = INITCRC;
 
+#ifdef ENABLE_CUDA
+
+    int mem_type = 0;
+    int is_managed = 0;
+    int switch_bufs = 0;
+    CUresult cu_res;
+    char *tmp_buf;
+    char *tmp_save;
+    CUdeviceptr src;
+
+    cu_res = cuPointerGetAttribute(&mem_type,
+        CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) buf);
+    if (CUDA_ERROR_INVALID_VALUE == cu_res) {
+        /* Do nothing */
+    } else {
+        cu_res = cuPointerGetAttribute(&is_managed,
+            CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr) buf);
+        if (CU_MEMORYTYPE_DEVICE == mem_type && !is_managed) {
+            switch_bufs = 1;
+            tmp_save = buf;
+            src = (CUdeviceptr) buf;
+            tmp_buf = malloc(size);
+            CU_CHECK(cuMemcpyDtoH(tmp_buf, src, size));
+            CU_CHECK(cuCtxSynchronize());
+            buf = tmp_buf;
+        }
+    }
+
+#endif
+
     if ( /*size <= 0*/ size == 0)   /*!!! the type of size is modified to unsigned size_t*/
         crccode = 0;
     else {
@@ -1376,6 +1443,13 @@ Return value          (type long)
             crccode = crc_32_tab[(int)((crccode) ^ (buf[i])) & 0xff] ^
                       (((crccode) >> 8) & 0x00FFFFFFL);
     }
+
+#ifdef ENABLE_CUDA
+    if (switch_bufs) {
+        buf = tmp_save;
+        free(tmp_buf);
+    }
+#endif
 
     return(crccode);
 }

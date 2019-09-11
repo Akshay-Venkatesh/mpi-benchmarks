@@ -1217,6 +1217,57 @@ Output variables:
     long pcrc, wcrc;
     size_t w_len, p_len;
 
+#ifdef ENABLE_CUDA
+
+    int mem_type = 0;
+    int is_managed = 0;
+    int switch_bufs_a = 0;
+    char *tmp_buf_a;
+    void *tmp_save_a;
+    int switch_bufs_b = 0;
+    char *tmp_buf_b;
+    void *tmp_save_b;
+    CUdeviceptr src;
+    CUresult cu_res;
+
+    cu_res = cuPointerGetAttribute(&mem_type,
+        CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) part);
+    if (CUDA_ERROR_INVALID_VALUE == cu_res) {
+        /* Do nothing */
+    } else {
+        cu_res = cuPointerGetAttribute(&is_managed,
+            CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr) part);
+        if (CU_MEMORYTYPE_DEVICE == mem_type && !is_managed) {
+            switch_bufs_a = 1;
+            tmp_save_a = part;
+            src = (CUdeviceptr) part;
+            tmp_buf_a = malloc(p_size);
+            CU_CHECK(cuMemcpyDtoH(tmp_buf_a, src, p_size));
+            CU_CHECK(cuCtxSynchronize());
+            part = tmp_buf_a;
+        }
+    }
+
+    cu_res = cuPointerGetAttribute(&mem_type,
+        CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr) whole);
+    if (CUDA_ERROR_INVALID_VALUE == cu_res) {
+        /* Do nothing */
+    } else {
+        cu_res = cuPointerGetAttribute(&is_managed,
+            CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr) whole);
+        if (CU_MEMORYTYPE_DEVICE == mem_type && !is_managed) {
+            switch_bufs_b = 1;
+            tmp_save_b = whole;
+            src = (CUdeviceptr) whole;
+            tmp_buf_b = malloc(p_size);
+            CU_CHECK(cuMemcpyDtoH(tmp_buf_b, src, p_size));
+            CU_CHECK(cuCtxSynchronize());
+            whole = tmp_buf_b;
+        }
+    }
+
+#endif
+
     a_part = (assign_type*)part;
     a_whole = (assign_type*)whole;
 
@@ -1271,6 +1322,18 @@ Output variables:
 
     if (*fpos != CHK_NO_FAULT /*>= 0*/)
         *D = 1.;
+
+#ifdef ENABLE_CUDA
+    if (switch_bufs_a) {
+        part = tmp_save_a;
+        free(tmp_buf_a);
+    }
+    if (switch_bufs_b) {
+        whole = tmp_save_b;
+        free(tmp_buf_b);
+    }
+#endif
+
 }
 
 

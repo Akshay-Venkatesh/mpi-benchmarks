@@ -136,8 +136,6 @@ extern int num_alloc, num_free;
         } else {                                                                                       \
             fprintf(stderr, "Should not be here; mem_type = %d\n", type);                              \
         }                                                                                              \
-        unsigned int value = 1;                                                                        \
-        CU_CHECK(cuPointerSetAttribute(&value, CU_POINTER_ATTRIBUTE_SYNC_MEMOPS, *pptr));              \
     } while(0);
 
 #endif
